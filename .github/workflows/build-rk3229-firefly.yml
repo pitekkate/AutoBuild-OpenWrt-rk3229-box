@@ -49,9 +49,12 @@ jobs:
 
       # 6. Salin konfigurasi build
       - name: Apply Custom Configuration
+        env:
+          CONFIG_FILE: 'Rk3229-box.config'
         run: |
-          cp ../Rk3229-box.config openwrt/.config
-          cd openwrt && make defconfig
+          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+          chmod +x ./customize.sh && ./customize.sh
+          cd openwrt && make defconfig        
 
       # 7. Download semua package yang dibutuhkan
       - name: Download Packages
