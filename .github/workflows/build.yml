@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: MIT
+
+name: Build RK3229 OpenWrt Firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  build:
+    name: Build RK3229 Firmware
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout kode repo
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Setup environment dasar
+      - name: Setup Basic Environment
+        run: |
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php
+          sudo apt-get purge -y azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell openjdk* mysql* php*
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev flex bison libssl-dev python3 python3-pip rsync unzip zip
+
+      # 3. Clone source code OpenWrt
+      - name: Clone OpenWrt Source
+        run: |
+          git clone --depth=1 https://github.com/pitekkate/lede-rk3229-box  openwrt
+          cd openwrt
+          echo "src-git ssrp https://github.com/fw876/helloworld.git"  >> feeds.conf.default
+
+      # 4. Update feeds
+      - name: Update & Install Feeds
+        working-directory: openwrt
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      # 5. Salin konfigurasi build
+      - name: Apply Custom Configuration
+        run: |
+          cp Rk3229-box.config openwrt/.config
+          cd openwrt && make defconfig
+
+      # 6. Download semua package yang dibutuhkan
+      - name: Download Packages
+        working-directory: openwrt
+        run: |
+          make download -j$(nproc)
+
+      # 7. Build firmware
+      - name: Build Firmware
+        working-directory: openwrt
+        run: |
+          echo "Building firmware with $(nproc) threads..."
+          make -j$(nproc) V=s
+
+      # 8. Upload hasil build
+      - name: Upload Firmware Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-rk3229-firmware
+          path: openwrt/bin/targets/
