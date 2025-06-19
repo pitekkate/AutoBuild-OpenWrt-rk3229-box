@@ -50,6 +50,98 @@ jobs:
       # 6. Salin konfigurasi build
       - name: Apply Custom Configuration
         run: |
+          cp ../Rk3229-box.config openwrt/.config
+          cd openwrt && make defconfig
+
+      # 7. Download semua package yang dibutuhkan
+      - name: Download Packages
+        working-directory: openwrt
+        run: |
+          make download -j$(nproc)
+
+      # 8. Build firmware dengan log output
+      - name: Build Firmware and Log Output
+        id: build_firmware
+        continue-on-error: true
+        working-directory: openwrt
+        run: |
+          echo "Building firmware with $(nproc) threads..."
+          make -j$(nproc) V=s 2>&1 | tee ../build.log
+
+      # 9. Upload hasil build JIKA BERHASIL
+      - name: Upload Firmware Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-rk3229-firmware
+          path: openwrt/bin/targets/
+
+      # 10. Upload log error JIKA GAGAL
+      - name: Upload Build Log (Failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-error-log
+          path: build.log
+
+      # 11. Upload log SELALU (opsional)
+      - name: Upload Build Log (Always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-build-log
+          path: build.logname: Build RK3229 OpenWrt Firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  build:
+    name: Build RK3229 Firmware
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout kode repo
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Setup environment dasar
+      - name: Setup Basic Environment
+        run: |
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libncurses5-dev flex bison libssl-dev python3 python3-pip rsync unzip zip
+
+      # 3. Install Additional Dependencies
+      - name: Install Additional Dependencies
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            git-core wget curl bc kmod patch make gcc g++ zlib1g-dev libzstd-dev \
+            libncurses5-dev libreadline-dev libssl-dev libelf-dev liblzma-dev \
+            libudev-dev libusb-1.0-0-dev libcurl4-openssl-dev
+
+      # 4. Clone source code OpenWrt
+      - name: Clone OpenWrt Source
+        run: |
+          git clone --depth=1 https://github.com/pitekkate/lede-rk3229-box  openwrt
+          cd openwrt
+          echo "src-git ssrp https://github.com/fw876/helloworld.git"  >> feeds.conf.default
+
+      # 5. Update feeds
+      - name: Update & Install Feeds
+        working-directory: openwrt
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      # 6. Salin konfigurasi build
+      - name: Apply Custom Configuration
+        run: |
           cp Rk3229-box.config openwrt/.config
           cd openwrt && make defconfig
 
